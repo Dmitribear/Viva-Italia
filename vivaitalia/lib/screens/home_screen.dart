@@ -3,43 +3,30 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
+// Только для Web:
+import 'dart:ui_web' as ui;   // platformViewRegistry
+import 'dart:html' as html;   // IFrameElement
 
-import 'dart:ui_web' as ui;   // web only
-import 'dart:html' as html;   // web only
+// ВСТАВЬ СВОЙ ТОКЕН MAPBOX
+const String mapboxToken = 'pk.eyJ1IjoiZGltb25tb3Jrb3ZrYSIsImEiOiJjbWhidXdqa2kwNnN2MmxzYXAwejJ4NW1uIn0.wz_W82D5ImOj1Z2knhCskg';
 
-class HomeScreen extends StatefulWidget {
-  const HomeScreen({super.key});
+// Центр Италии и масштаб
+const double _centerLat = 41.9;  // Рим
+const double _centerLon = 12.5;
+const double _zoom      = 5.8;
 
-  @override
-  State<HomeScreen> createState() => _HomeScreenState();
-}
+// Доступные стили: mapbox/streets-v12, mapbox/outdoors-v12, mapbox/satellite-v9
+const String _styleId = 'mapbox/streets-v12';
 
-class _HomeScreenState extends State<HomeScreen> {
-  bool showMap = false;
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      body: AnimatedSwitcher(
-        duration: const Duration(milliseconds: 350),
-        child: showMap
-            ? _MapView(onClose: () => setState(() => showMap = false))
-            : _WelcomeView(onOpenMap: () => setState(() => showMap = true)),
-      ),
-    );
-  }
-}
-
-/// Главная: фон-фото + текст + кнопка
-class _WelcomeView extends StatelessWidget {
-  final VoidCallback onOpenMap;
-  const _WelcomeView({required this.onOpenMap});
+/// ------------ ГЛАВНЫЙ ЭКРАН (фон + текст) ------------
+class VivaHomePage extends StatelessWidget {
+  const VivaHomePage({super.key});
 
   @override
   Widget build(BuildContext context) {
     return Stack(
       children: [
-        // Фон из сети
+        // Фон
         Positioned.fill(
           child: ColorFiltered(
             colorFilter: ColorFilter.mode(
@@ -56,8 +43,7 @@ class _WelcomeView extends StatelessWidget {
           child: DecoratedBox(
             decoration: BoxDecoration(
               gradient: LinearGradient(
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
+                begin: Alignment.topCenter, end: Alignment.bottomCenter,
                 colors: [Colors.transparent, Colors.black26],
               ),
             ),
@@ -67,45 +53,33 @@ class _WelcomeView extends StatelessWidget {
           child: Center(
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 24),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const Text(
-                    'Viva Italia',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      fontSize: 44,
-                      fontWeight: FontWeight.w800,
-                      color: Colors.white,
-                      letterSpacing: 0.5,
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  const Text(
-                    'Путеводитель по Италии: история, кухня, города и море. '
-                        'Открой карту, чтобы увидеть страну целиком.',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      fontSize: 16,
-                      height: 1.35,
-                      color: Colors.white70,
-                    ),
-                  ),
-                  const SizedBox(height: 32),
-                  FilledButton.icon(
-                    style: FilledButton.styleFrom(
-                      backgroundColor: const Color(0xFF008C45),
-                      padding:
-                      const EdgeInsets.symmetric(horizontal: 28, vertical: 14),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(14),
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 520),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Text(
+                      'Viva Italia',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontSize: 44, fontWeight: FontWeight.w800,
+                        color: Colors.white, letterSpacing: 0.5,
                       ),
                     ),
-                    onPressed: onOpenMap,
-                    icon: const Icon(Icons.map),
-                    label: const Text('Открыть карту', style: TextStyle(fontSize: 18)),
-                  ),
-                ],
+                    const SizedBox(height: 12),
+                    const Text(
+                      'Путеводитель по Италии. Красивые города, кухня, история и море.',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(fontSize: 16, height: 1.35, color: Colors.white70),
+                    ),
+                    const SizedBox(height: 20),
+                    const Text(
+                      'Перейди на вкладку «Карта» внизу, чтобы открыть интерактивную карту.',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(fontSize: 14, color: Colors.white60),
+                    ),
+                  ],
+                ),
               ),
             ),
           ),
@@ -115,69 +89,88 @@ class _WelcomeView extends StatelessWidget {
   }
 }
 
-/// Карта: в вебе — живой OpenStreetMap в iframe; вне веба — плейсхолдер.
-class _MapView extends StatelessWidget {
-  final VoidCallback onClose;
-  const _MapView({required this.onClose});
+/// ------------ КАРТА (Mapbox, full-screen) ------------
+class VivaMapPage extends StatelessWidget {
+  const VivaMapPage({super.key});
 
   @override
   Widget build(BuildContext context) {
-    return Stack(
-      children: [
-        Positioned.fill(child: _buildMapContent()),
-        SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.all(12),
-            child: FloatingActionButton.small(
-              backgroundColor: Colors.white,
-              onPressed: onClose,
-              child: const Icon(Icons.arrow_back, color: Colors.black87),
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildMapContent() {
-    if (kIsWeb) {
-      // Центр и bbox Италии
-      final url =
-          'https://www.openstreetmap.org/export/embed.html?bbox=6.0,36.0,19.0,47.0&layer=mapnik&marker=41.9,12.5';
-      final viewType = _registerIFrame(url);
-      return HtmlElementView(viewType: viewType);
-    }
-
-    // Не web: заглушка
-    return Container(
-      color: Colors.white,
-      alignment: Alignment.center,
-      padding: const EdgeInsets.all(24),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: const [
-          Icon(Icons.public, size: 48, color: Colors.black54),
-          SizedBox(height: 12),
-          Text(
-            'Карта доступна в веб-версии (Chrome).',
-            textAlign: TextAlign.center,
-            style: TextStyle(color: Colors.black54),
+    // SizedBox.expand гарантирует 100% ширину/высоту под навбаром
+    return SizedBox.expand(
+      child: Stack(
+        children: [
+          Positioned.fill(child: _buildMapContent()),
+          // Атрибуция
+          const Positioned(
+            bottom: 8, right: 10,
+            child: Text('© Mapbox © OpenStreetMap',
+                style: TextStyle(fontSize: 12, color: Colors.black54)),
           ),
         ],
       ),
     );
   }
 
-  // Регистрация iframe для Platform Views (только Web)
+  Widget _buildMapContent() {
+    if (kIsWeb) {
+      final url = _buildMapboxEmbedUrl(
+        styleId: _styleId, token: mapboxToken,
+        lat: _centerLat, lon: _centerLon, zoom: _zoom,
+      );
+      final viewType = _registerIFrame(url);
+      return HtmlElementView(viewType: viewType);
+    }
+
+    // На не-web платформах показываем плейсхолдер
+    return Container(
+      color: Colors.white,
+      alignment: Alignment.center,
+      padding: const EdgeInsets.all(24),
+      child: const Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(Icons.public, size: 48, color: Colors.black54),
+          SizedBox(height: 12),
+          Text('Карта доступна в веб-сборке (Chrome).',
+              textAlign: TextAlign.center,
+              style: TextStyle(color: Colors.black54)),
+        ],
+      ),
+    );
+  }
+
+  // Страница Mapbox, которая нормально встраивается в iframe и растягивается.
+  String _buildMapboxEmbedUrl({
+    required String styleId,
+    required String token,
+    required double lat,
+    required double lon,
+    required double zoom,
+  }) {
+    // Параметры: отключаем заголовок, включаем колесо, ставим hash для центра/зума
+    final base   = 'https://api.mapbox.com/styles/v1/$styleId.html';
+    final params = 'title=false&zoomwheel=true&fresh=true&access_token=$token';
+    final hash   = '#$zoom/$lat/$lon';
+    return '$base?$params$hash';
+  }
+
+  /// Регистрируем iframe как платформенный виджет (только Web)
   String _registerIFrame(String url) {
-    final viewType = 'osm-iframe-${DateTime.now().microsecondsSinceEpoch}';
+    final viewType = 'mapbox-iframe-${DateTime.now().microsecondsSinceEpoch}';
+
     final element = html.IFrameElement()
       ..src = url
       ..style.border = '0'
+      ..style.margin = '0'
+      ..style.padding = '0'
       ..style.width = '100%'
-      ..style.height = '100%';
+      ..style.height = '100%'
+      ..style.display = 'block'         // убираем «квадратик»
+      ..style.position = 'relative';
 
-    // ВАЖНО: используем ui_web
+    // разрешения на всякий случай
+    element.setAttribute('allow', 'geolocation *; fullscreen *');
+
     ui.platformViewRegistry.registerViewFactory(viewType, (int _) => element);
     return viewType;
   }

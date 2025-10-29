@@ -12,10 +12,49 @@ class VivaItaliaApp extends StatelessWidget {
       title: 'Viva Italia',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
-        colorSchemeSeed: const Color(0xFF006400),
         useMaterial3: true,
+        colorSchemeSeed: const Color(0xFF008C45),
       ),
-      home: const HomeScreen(),
+      home: const _Root(),
+    );
+  }
+}
+
+class _Root extends StatefulWidget {
+  const _Root({super.key});
+
+  @override
+  State<_Root> createState() => _RootState();
+}
+
+class _RootState extends State<_Root> {
+  int _index = 0;
+
+  final _pages = const [
+    VivaHomePage(),     // главная
+    VivaMapPage(),      // карта
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: _pages[_index],
+      bottomNavigationBar: NavigationBar(
+        selectedIndex: _index,
+        onDestinationSelected: (i) => setState(() => _index = i),
+        destinations: const [
+          NavigationDestination(
+            icon: Icon(Icons.home_outlined),
+            selectedIcon: Icon(Icons.home),
+            label: 'Дом',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.map_outlined),
+            selectedIcon: Icon(Icons.map),
+            label: 'Карта',
+          ),
+        ],
+      ),
     );
   }
 }
