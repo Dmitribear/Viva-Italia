@@ -2,6 +2,8 @@
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:vivaitalia/screens/details_screen.dart';
+
 
 // Только для Web:
 import 'dart:ui_web' as ui;   // platformViewRegistry
@@ -77,6 +79,16 @@ class VivaHomePage extends StatelessWidget {
                       'Перейди на вкладку «Карта» внизу, чтобы открыть интерактивную карту.',
                       textAlign: TextAlign.center,
                       style: TextStyle(fontSize: 14, color: Colors.white60),
+                    ),
+                    const SizedBox(height: 20),
+                    ElevatedButton(
+                      onPressed: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (context) => const DetailsScreen()),
+                        );
+                      },
+                      child: const Text('Перейти на экран деталей'),
                     ),
                   ],
                 ),
