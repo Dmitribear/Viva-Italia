@@ -1,5 +1,6 @@
 // ignore_for_file: avoid_web_libraries_in_flutter
 
+import 'dart:convert';
 import 'dart:html' as html;
 import 'dart:ui_web' as ui;
 
@@ -135,7 +136,11 @@ class _VivaMapPageState extends State<VivaMapPage> {
                       runSpacing: 6,
                       children: _cities
                           .map(
-                            (c) => Chip(
+                            (c) => ActionChip(
+                              onPressed: () {
+                                _controller.text = c.name;
+                                _setCenter(c);
+                              },
                               label: Text(c.name),
                               avatar: const Icon(Icons.place, size: 18),
                               labelStyle: const TextStyle(fontSize: 13),
@@ -187,9 +192,13 @@ class _VivaMapPageState extends State<VivaMapPage> {
     setState(() {
       _error = null;
       _hint = match.hint;
-      _center = match;
-      _viewTypeId = _registerLeafletView(match);
+      _setCenter(match);
     });
+  }
+
+  void _setCenter(_City city) {
+    _center = city;
+    _viewTypeId = _registerLeafletView(city);
   }
 
   bool _isInputShapeValid(String value) {
@@ -281,9 +290,7 @@ class _VivaMapPageState extends State<VivaMapPage> {
   }
 
   String _buildHtml(_City center) {
-    final markers = _cities
-        .map((c) => "{name:'${c.name}',lat:${c.lat},lon:${c.lon}}")
-        .join(',');
+    final citiesJson = jsonEncode(_cities.map((c) => c.toMap()).toList());
 
     return '''
 <!DOCTYPE html>
@@ -301,6 +308,8 @@ class _VivaMapPageState extends State<VivaMapPage> {
     <div id="map"></div>
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script>
+      const cities = $citiesJson;
+
       const map = L.map('map', { scrollWheelZoom: true })
         .setView([${center.lat}, ${center.lon}], 6.2);
       L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
@@ -308,9 +317,43 @@ class _VivaMapPageState extends State<VivaMapPage> {
         attribution: '© OpenStreetMap'
       }).addTo(map);
 
-      const points = [$markers];
-      points.forEach(p => {
-        L.marker([p.lat, p.lon]).addTo(map).bindPopup(p.name);
+      // Modal helpers
+      const modal = document.createElement('div');
+      modal.id = 'city-modal';
+      modal.style.cssText = 'position:fixed;inset:0;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,0.45);backdrop-filter:blur(2px);z-index:9999;font-family:Segoe UI, sans-serif;';
+      modal.innerHTML = '<div id="city-card" style="background:#fff;border-radius:14px;max-width:520px;width:92%;box-shadow:0 12px 38px rgba(0,0,0,0.22);overflow:hidden;"><div id="city-content"></div></div>';
+      document.body.appendChild(modal);
+      modal.addEventListener('click', (e) => { if (e.target === modal) hideModal(); });
+
+      function hideModal(){ modal.style.display='none'; }
+      function showModal(city){
+        const wrap = modal.querySelector('#city-content');
+        const tag = (label, items) => items.length ? '<div style="margin-top:10px"><div style="font-weight:700;font-size:14px;margin-bottom:6px">'+label+'</div>'+items.map(p => {
+          if (p.url) return '<a href="'+p.url+'" target="_blank" rel="noopener" style="display:block;margin:4px 0;color:#0a5ad4;text-decoration:none;">'+p.title+'</a>';
+          return '<div style="margin:4px 0;">'+p.title+'</div>';
+        }).join('')+'</div>' : '';
+        wrap.innerHTML = \`
+          <div style="padding:16px 18px 12px; display:flex; align-items:center; justify-content:space-between; gap:12px; border-bottom:1px solid #eef1f5;">
+            <div>
+              <div style="font-size:18px;font-weight:800;">\${city.name}</div>
+              <div style="font-size:13.5px;color:#64748b;">\${city.hint || ''}</div>
+            </div>
+            <button aria-label="Close" onclick="hideModal();" style="border:none;background:#eef1f5;border-radius:50%;width:32px;height:32px;cursor:pointer;">✕</button>
+          </div>
+          <div style="padding:16px 18px 18px;font-size:14px;color:#1f2937;line-height:1.5;">
+            <div>\${city.description}</div>
+            \${tag('Что посмотреть', city.places)}
+            \${tag('Отели / жильё', city.hotels)}
+            \${tag('Еда и кофе', city.food)}
+            \${tag('Факты', city.facts)}
+          </div>
+        \`;
+        modal.style.display = 'flex';
+      }
+
+      cities.forEach(c => {
+        const marker = L.marker([c.lat, c.lon]).addTo(map);
+        marker.on('click', () => showModal(c));
       });
     </script>
   </body>
@@ -325,13 +368,43 @@ class _City {
   final String hint;
   final double lat;
   final double lon;
+  final String description;
+  final List<_Poi> places;
+  final List<_Poi> hotels;
+  final List<_Poi> food;
+  final List<_Poi> facts;
   const _City({
     required this.name,
     required this.lat,
     required this.lon,
     this.aliases = const [],
     this.hint = '',
+    this.description = '',
+    this.places = const [],
+    this.hotels = const [],
+    this.food = const [],
+    this.facts = const [],
   });
+
+  Map<String, Object> toMap() => {
+        'name': name,
+        'hint': hint,
+        'lat': lat,
+        'lon': lon,
+        'description': description,
+        'places': places.map((p) => p.toMap()).toList(),
+        'hotels': hotels.map((p) => p.toMap()).toList(),
+        'food': food.map((p) => p.toMap()).toList(),
+        'facts': facts.map((p) => p.toMap()).toList(),
+      };
+}
+
+class _Poi {
+  final String title;
+  final String? url;
+  const _Poi(this.title, {this.url});
+  Map<String, String> toMap() =>
+      url == null ? {'title': title} : {'title': title, 'url': url!};
 }
 
 const _cities = [
@@ -339,6 +412,24 @@ const _cities = [
     name: 'Рим',
     aliases: ['Rome', 'Roma'],
     hint: 'Вечный город, Колизей и Ватикан.',
+    description:
+        'Исторический центр, античные руины и музеи мирового уровня. Легко пешком + метро.',
+    places: [
+      _Poi('Колизей', url: 'https://colosseum.tickets/'),
+      _Poi('Ватикан и Сикстинская капелла', url: 'https://tickets.museivaticani.va/'),
+      _Poi('Фонтан Треви'),
+    ],
+    hotels: [
+      _Poi('Trastevere B&B'),
+      _Poi('Hotel Artemide'),
+    ],
+    food: [
+      _Poi('Roscioli (паста/сулугуни)'),
+      _Poi('Pizzarium Bonci (пицца на срез)'),
+    ],
+    facts: [
+      _Poi('Метро всего 3 линии, автобусами быстрее по центру'),
+    ],
     lat: 41.9028,
     lon: 12.4964,
   ),
@@ -346,6 +437,24 @@ const _cities = [
     name: 'Сицилия (Палермо)',
     aliases: ['Sicilia', 'Palermo', 'Sicily'],
     hint: 'Солнце, рынки, канноли и Этна.',
+    description:
+        'Островный вайб: барокко Палермо, вулкан Этна, уличная еда и пляжи Чефалу.',
+    places: [
+      _Poi('Собор Палермо'),
+      _Poi('Монреале'),
+      _Poi('Этна', url: 'https://www.etnaexperience.com/'),
+    ],
+    hotels: [
+      _Poi('NH Palermo'),
+      _Poi('B&B Quattro Incanti'),
+    ],
+    food: [
+      _Poi('Cannoli у Cannoli & Co'),
+      _Poi('Arancina у Ke Palle'),
+    ],
+    facts: [
+      _Poi('Лучшее время май–июнь и сентябрь'),
+    ],
     lat: 38.1157,
     lon: 13.3615,
   ),
@@ -353,6 +462,20 @@ const _cities = [
     name: 'Пиза',
     aliases: ['Pisa'],
     hint: 'Наклонная башня и Тоскана рядом.',
+    description: 'Компактный старый город, башня и быстрый доступ во Флоренцию.',
+    places: [
+      _Poi('Площадь Чудес и башня', url: 'https://www.opapisa.it/'),
+      _Poi('Арно и мосты'),
+    ],
+    hotels: [
+      _Poi('Hotel Bologna Pisa'),
+    ],
+    food: [
+      _Poi('La Taverna di Emma'),
+    ],
+    facts: [
+      _Poi('Башня допускает подъём по билетам с тайм-слотами'),
+    ],
     lat: 43.7228,
     lon: 10.4017,
   ),
@@ -360,6 +483,24 @@ const _cities = [
     name: 'Милан',
     aliases: ['Milano', 'Milan'],
     hint: 'Дуомо, опера и мода.',
+    description:
+        'Столица дизайна: Дуомо, Галерея Виктора Эммануила и кварталы Навильи.',
+    places: [
+      _Poi('Дуомо', url: 'https://www.duomomilano.it/en/'),
+      _Poi('Santa Maria delle Grazie (Тайная вечеря)', url: 'https://cenacolovinciano.vivaticket.it/'),
+      _Poi('Каналы Навильи'),
+    ],
+    hotels: [
+      _Poi('Room Mate Giulia'),
+      _Poi('Ostello Bello (хостел)'),
+    ],
+    food: [
+      _Poi('Luini (панцеротти)'),
+      _Poi('Pavé (кофе/круассаны)'),
+    ],
+    facts: [
+      _Poi('Проездной ATM выгоден на 1–3 дня'),
+    ],
     lat: 45.4642,
     lon: 9.19,
   ),
@@ -367,6 +508,22 @@ const _cities = [
     name: 'Турин',
     aliases: ['Torino', 'Turin'],
     hint: 'Шоколад, Альпы и кино.',
+    description:
+        'Барокко, музеи кино и Египта, вида на Альпы. Город кофе и джандуйи.',
+    places: [
+      _Poi('Mole Antonelliana (музей кино)', url: 'https://www.museocinema.it/'),
+      _Poi('Египетский музей', url: 'https://museoegizio.it/'),
+    ],
+    hotels: [
+      _Poi('NH Collection Torino Piazza Carlina'),
+    ],
+    food: [
+      _Poi('Caffè Torino (бичерин)'),
+      _Poi('Guido Gobino (джандуйя)'),
+    ],
+    facts: [
+      _Poi('Линия метро всего одна — удобно по центру'),
+    ],
     lat: 45.0703,
     lon: 7.6869,
   ),
