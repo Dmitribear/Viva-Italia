@@ -4,7 +4,12 @@ import 'package:vivaitalia/screens/details_screen.dart';
 
 class VivaHomePage extends StatefulWidget {
   final int launchCount;
-  const VivaHomePage({super.key, required this.launchCount});
+  final void Function(String cityName)? onNavigateToMap;
+  const VivaHomePage({
+    super.key,
+    required this.launchCount,
+    this.onNavigateToMap,
+  });
 
   @override
   State<VivaHomePage> createState() => _VivaHomePageState();
@@ -496,24 +501,18 @@ class _VivaHomePageState extends State<VivaHomePage> {
                   Row(
                     children: [
                       Expanded(
-                        child: OutlinedButton.icon(
-                          onPressed: () {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                content: const Text('Переключись на вкладку "Карта" внизу экрана'),
-                                action: SnackBarAction(
-                                  label: 'OK',
-                                  onPressed: () {},
-                                ),
-                                duration: const Duration(seconds: 3),
-                              ),
-                            );
+                        child: FilledButton.icon(
+                          onPressed: () async {
+                            final cityName = _cityController.text.trim();
+                            final prefs = await SharedPreferences.getInstance();
+                            await prefs.setString('focusCity', cityName);
+                            widget.onNavigateToMap?.call(cityName);
                           },
                           icon: const Icon(Icons.map),
-                          label: const Text('На карте'),
-                          style: OutlinedButton.styleFrom(
-                            foregroundColor: Colors.white,
-                            side: const BorderSide(color: Colors.white54),
+                          label: const Text('Показать на карте'),
+                          style: FilledButton.styleFrom(
+                            backgroundColor: Colors.white,
+                            foregroundColor: Colors.black87,
                           ),
                         ),
                       ),
@@ -564,41 +563,185 @@ class _VivaHomePageState extends State<VivaHomePage> {
             ),
           ],
           if (_wishList.isNotEmpty) ...[
-            const SizedBox(height: 20),
-            const Divider(color: Colors.white24),
-            const SizedBox(height: 8),
-            Row(
-              children: [
-                const Icon(Icons.favorite, color: Colors.white70, size: 18),
-                const SizedBox(width: 8),
-                Text(
-                  'Твои города мечты (${_wishList.length})',
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.w600,
-                    fontSize: 15,
+            const SizedBox(height: 24),
+            Container(
+              padding: const EdgeInsets.all(18),
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.12),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: Colors.white24),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: Colors.red.withOpacity(0.2),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: const Icon(
+                          Icons.favorite,
+                          color: Colors.red,
+                          size: 20,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              'Избранные города',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.w700,
+                                fontSize: 16,
+                              ),
+                            ),
+                            Text(
+                              '${_wishList.length} ${_wishList.length == 1 ? 'город' : _wishList.length < 5 ? 'города' : 'городов'}',
+                              style: TextStyle(
+                                color: Colors.white.withOpacity(0.7),
+                                fontSize: 13,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      if (_wishList.length > 1)
+                        TextButton.icon(
+                          onPressed: () async {
+                            final confirm = await showDialog<bool>(
+                              context: context,
+                              builder: (ctx) => AlertDialog(
+                                title: const Text('Очистить список?'),
+                                content: const Text(
+                                  'Удалить все города из избранного?',
+                                ),
+                                actions: [
+                                  TextButton(
+                                    onPressed: () => Navigator.pop(ctx, false),
+                                    child: const Text('Отмена'),
+                                  ),
+                                  FilledButton(
+                                    onPressed: () => Navigator.pop(ctx, true),
+                                    child: const Text('Удалить всё'),
+                                  ),
+                                ],
+                              ),
+                            );
+                            if (confirm == true) {
+                              setState(() {
+                                _wishList.clear();
+                                _saveWishList();
+                              });
+                            }
+                          },
+                          icon: const Icon(Icons.delete_outline, size: 18),
+                          label: const Text('Очистить'),
+                          style: TextButton.styleFrom(
+                            foregroundColor: Colors.white70,
+                          ),
+                        ),
+                    ],
                   ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 10),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: _wishList.map((city) {
-                return Chip(
-                  label: Text(city),
-                  deleteIcon: const Icon(Icons.close, size: 16),
-                  onDeleted: () {
-                    setState(() {
-                      _wishList.remove(city);
-                      _saveWishList();
-                    });
-                  },
-                  backgroundColor: Colors.white.withOpacity(0.15),
-                  labelStyle: const TextStyle(color: Colors.white),
-                );
-              }).toList(),
+                  const SizedBox(height: 16),
+                  ..._wishList.asMap().entries.map((entry) {
+                    final index = entry.key;
+                    final city = entry.value;
+                    final cityInfo = _knownCities[city];
+                    return Container(
+                      margin: EdgeInsets.only(
+                        bottom: index < _wishList.length - 1 ? 10 : 0,
+                      ),
+                      padding: const EdgeInsets.all(14),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withOpacity(0.08),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: Colors.white.withOpacity(0.1)),
+                      ),
+                      child: Row(
+                        children: [
+                          Container(
+                            width: 40,
+                            height: 40,
+                            decoration: BoxDecoration(
+                              color: Colors.white.withOpacity(0.15),
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: Center(
+                              child: Text(
+                                '${index + 1}',
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.w700,
+                                  fontSize: 16,
+                                ),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  city,
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.w600,
+                                    fontSize: 15,
+                                  ),
+                                ),
+                                if (cityInfo != null) ...[
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    cityInfo,
+                                    style: TextStyle(
+                                      color: Colors.white.withOpacity(0.7),
+                                      fontSize: 12,
+                                    ),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ],
+                              ],
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          IconButton(
+                            onPressed: () async {
+                              final prefs = await SharedPreferences.getInstance();
+                              await prefs.setString('focusCity', city);
+                              widget.onNavigateToMap?.call(city);
+                            },
+                            icon: const Icon(Icons.map),
+                            color: Colors.white,
+                            tooltip: 'Показать на карте',
+                            style: IconButton.styleFrom(
+                              backgroundColor: Colors.white.withOpacity(0.15),
+                            ),
+                          ),
+                          IconButton(
+                            onPressed: () {
+                              setState(() {
+                                _wishList.remove(city);
+                                _saveWishList();
+                              });
+                            },
+                            icon: const Icon(Icons.close, size: 18),
+                            color: Colors.white70,
+                            tooltip: 'Удалить',
+                          ),
+                        ],
+                      ),
+                    );
+                  }),
+                ],
+              ),
             ),
           ],
         ],

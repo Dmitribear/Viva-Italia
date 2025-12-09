@@ -82,8 +82,14 @@ class _RootState extends State<_Root> {
     super.initState();
     _index = widget.initialTab;
     _pages = [
-      VivaHomePage(launchCount: widget.launchCount),
-      const VivaMapPage(),
+      VivaHomePage(
+        launchCount: widget.launchCount,
+        onNavigateToMap: (cityName) {
+          setState(() => _index = 1);
+          widget.prefs.setInt('lastTab', 1);
+        },
+      ),
+      VivaMapPage(prefs: widget.prefs),
     ];
   }
 

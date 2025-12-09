@@ -7,9 +7,11 @@ import 'dart:ui_web' as ui;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:pointer_interceptor/pointer_interceptor.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class VivaMapPage extends StatefulWidget {
-  const VivaMapPage({super.key});
+  final SharedPreferences? prefs;
+  const VivaMapPage({super.key, this.prefs});
 
   @override
   State<VivaMapPage> createState() => _VivaMapPageState();
@@ -30,6 +32,41 @@ class _VivaMapPageState extends State<VivaMapPage> {
     super.initState();
     _channelId = 'osm-channel-${DateTime.now().microsecondsSinceEpoch}';
     _viewTypeId = _registerLeafletView(_center);
+    _checkFocusCity();
+  }
+
+  Future<void> _checkFocusCity() async {
+    if (widget.prefs == null) return;
+    final focusCity = widget.prefs!.getString('focusCity');
+    if (focusCity != null && focusCity.isNotEmpty) {
+      // Очищаем сразу, чтобы не фокусироваться повторно
+      await widget.prefs!.remove('focusCity');
+      
+      // Ищем город в списке
+      final city = _findCityByName(focusCity);
+      if (city != null) {
+        // Небольшая задержка для загрузки iframe
+        Future.delayed(const Duration(milliseconds: 500), () {
+          _setCenter(city);
+          _controller.text = city.name;
+          setState(() {
+            _hint = city.hint;
+            _error = null;
+          });
+        });
+      }
+    }
+  }
+
+  _City? _findCityByName(String name) {
+    final normalized = name.toLowerCase().trim();
+    for (final city in _cities) {
+      if (city.name.toLowerCase() == normalized) return city;
+      for (final alias in city.aliases) {
+        if (alias.toLowerCase() == normalized) return city;
+      }
+    }
+    return null;
   }
 
   @override

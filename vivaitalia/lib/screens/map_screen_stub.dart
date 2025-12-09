@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 /// Заглушка для нативных платформ: карта доступна только в веб-сборке.
 class VivaMapPage extends StatelessWidget {
-  const VivaMapPage({super.key});
+  final SharedPreferences? prefs;
+  const VivaMapPage({super.key, this.prefs});
 
   @override
   Widget build(BuildContext context) {
