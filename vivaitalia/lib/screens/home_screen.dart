@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:vivaitalia/screens/details_screen.dart';
-
 
 class VivaHomePage extends StatefulWidget {
   final int launchCount;
@@ -13,11 +13,91 @@ class VivaHomePage extends StatefulWidget {
 class _VivaHomePageState extends State<VivaHomePage> {
   final _formKey = GlobalKey<FormState>();
   final _cityController = TextEditingController();
+  List<String> _wishList = [];
+  String? _foundCityInfo;
+  List<String> _suggestions = [];
+  bool _isLoading = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadWishList();
+  }
 
   @override
   void dispose() {
     _cityController.dispose();
     super.dispose();
+  }
+
+  Future<void> _loadWishList() async {
+    final prefs = await SharedPreferences.getInstance();
+    final list = prefs.getStringList('wishList') ?? [];
+    setState(() => _wishList = list);
+  }
+
+  Future<void> _saveWishList() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setStringList('wishList', _wishList);
+  }
+
+  // Расширенный список известных итальянских городов и регионов
+  static const _knownCities = {
+    'Рим': 'Столица Италии, Колизей, Ватикан',
+    'Милан': 'Столица моды, Дуомо, Навильи',
+    'Венеция': 'Каналы, Гранд-канал, площадь Сан-Марко',
+    'Флоренция': 'Родина Возрождения, Уффици, Дуомо',
+    'Неаполь': 'Пицца, Помпеи, Везувий',
+    'Турин': 'Шоколад, музеи, Альпы',
+    'Пиза': 'Наклонная башня, площадь Чудес',
+    'Болонья': 'Университет, башни, кухня',
+    'Генуя': 'Порт, аквариум, старый город',
+    'Палермо': 'Сицилия, барокко, рынки',
+    'Катания': 'Сицилия, Этна, вулкан',
+    'Бари': 'Апулия, мощи Николая Чудотворца',
+    'Сиена': 'Тоскана, Палио, средневековье',
+    'Перуджа': 'Умбрия, шоколад, университет',
+    'Ассизи': 'Умбрия, святой Франциск',
+    'Верона': 'Ромео и Джульетта, арена',
+    'Падуя': 'Венето, капелла Скровеньи',
+    'Равенна': 'Эмилия-Романья, мозаики',
+    'Мантуя': 'Ломбардия, дворец Гонзага',
+    'Кремона': 'Ломбардия, скрипки',
+    'Лигурия': 'Регион: Генуя, Чинкве-Терре',
+    'Тоскана': 'Регион: Флоренция, Сиена, Пиза',
+    'Умбрия': 'Регион: Перуджа, Ассизи',
+    'Венето': 'Регион: Венеция, Верона, Падуя',
+    'Ломбардия': 'Регион: Милан, Мантуя',
+    'Эмилия-Романья': 'Регион: Болонья, Равенна',
+    'Сицилия': 'Остров: Палермо, Катания, Этна',
+    'Сардиния': 'Остров: Кальяри, пляжи',
+    'Апулия': 'Регион: Бари, Лечче, Трулли',
+    'Кампания': 'Регион: Неаполь, Амальфи',
+  };
+
+  String? _findCity(String query) {
+    final q = query.trim().toLowerCase();
+    for (final entry in _knownCities.entries) {
+      final name = entry.key.toLowerCase();
+      if (name == q || name.startsWith(q) || name.contains(q)) {
+        return entry.key;
+      }
+    }
+    return null;
+  }
+
+  List<String> _findSuggestions(String query) {
+    if (query.length < 2) return [];
+    final q = query.trim().toLowerCase();
+    final matches = <String>[];
+    for (final entry in _knownCities.entries) {
+      final name = entry.key.toLowerCase();
+      if (name.contains(q) && name != q) {
+        matches.add(entry.key);
+        if (matches.length >= 3) break;
+      }
+    }
+    return matches;
   }
 
   @override
@@ -266,6 +346,36 @@ class _VivaHomePageState extends State<VivaHomePage> {
     );
   }
 
+  Future<void> _checkCity() async {
+    if (!(_formKey.currentState?.validate() ?? false)) return;
+
+    setState(() {
+      _isLoading = true;
+      _foundCityInfo = null;
+      _suggestions = [];
+    });
+
+    final query = _cityController.text.trim();
+    
+    // Имитация небольшой задержки для UX
+    await Future.delayed(const Duration(milliseconds: 300));
+
+    final found = _findCity(query);
+    
+    setState(() {
+      _isLoading = false;
+      if (found != null) {
+        _foundCityInfo = _knownCities[found]!;
+        if (!_wishList.contains(found)) {
+          _wishList.add(found);
+          _saveWishList();
+        }
+      } else {
+        _suggestions = _findSuggestions(query);
+      }
+    });
+  }
+
   Widget _wishForm(BuildContext context) {
     return Form(
       key: _formKey,
@@ -273,11 +383,19 @@ class _VivaHomePageState extends State<VivaHomePage> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const Text(
-            'Запиши город мечты — проверим, что ввёл осознанно',
+            'Найди свой город мечты в Италии',
             style: TextStyle(
               color: Colors.white,
               fontWeight: FontWeight.w600,
               fontSize: 16,
+            ),
+          ),
+          const SizedBox(height: 6),
+          const Text(
+            'Введи название города или региона — найдём информацию',
+            style: TextStyle(
+              color: Colors.white70,
+              fontSize: 13,
             ),
           ),
           const SizedBox(height: 10),
@@ -285,57 +403,204 @@ class _VivaHomePageState extends State<VivaHomePage> {
             controller: _cityController,
             style: const TextStyle(color: Colors.black87),
             decoration: InputDecoration(
-              labelText: 'Город или регион',
-              hintText: 'Например, Болонья или Лигурия',
+              labelText: 'Город или регион Италии',
+              hintText: 'Например, Болонья, Венеция, Тоскана',
               labelStyle: const TextStyle(color: Colors.black87),
-              prefixIcon: const Icon(Icons.location_on_outlined),
+              prefixIcon: const Icon(Icons.search),
               filled: true,
               fillColor: Colors.white.withOpacity(0.9),
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(12),
               ),
             ),
+            onChanged: (value) {
+              setState(() {
+                _foundCityInfo = null;
+                _suggestions = [];
+              });
+            },
             validator: (value) {
               final text = value?.trim() ?? '';
-              if (text.isEmpty) return 'Поле не должно быть пустым';
-              if (text.length < 3) return 'Минимум 3 символа';
+              if (text.isEmpty) return 'Введи название города';
+              if (text.length < 2) return 'Минимум 2 символа';
               if (!RegExp(r'^[a-zA-Zа-яА-ЯёЁ\s\-]+$').hasMatch(text)) {
-                return 'Используй только буквы и пробелы';
+                return 'Только буквы, пробелы и дефисы';
               }
               return null;
             },
           ),
           const SizedBox(height: 12),
-          FilledButton(
-            onPressed: () {
-              if (_formKey.currentState?.validate() ?? false) {
-                final city = _cityController.text.trim();
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content:
-                        Text('Записали: $city. Добавь на карте свою метку!'),
-                  ),
-                );
-              }
-            },
-            style: FilledButton.styleFrom(
-              backgroundColor: Colors.white.withOpacity(0.9),
-              foregroundColor: Colors.black,
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
+          SizedBox(
+            width: double.infinity,
+            child: FilledButton.icon(
+              onPressed: _isLoading ? null : _checkCity,
+              style: FilledButton.styleFrom(
+                backgroundColor: Colors.white.withOpacity(0.9),
+                foregroundColor: Colors.black,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 14,
+                ),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
               ),
-            ),
-            child: const Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(Icons.check_circle_outline),
-                SizedBox(width: 8),
-                Text('Проверить ввод'),
-              ],
+              icon: _isLoading
+                  ? const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.search),
+              label: Text(_isLoading ? 'Ищем...' : 'Найти город'),
             ),
           ),
+          if (_foundCityInfo != null) ...[
+            const SizedBox(height: 16),
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.green.withOpacity(0.2),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.green.withOpacity(0.5)),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      const Icon(Icons.check_circle, color: Colors.green),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          _cityController.text.trim(),
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w700,
+                            fontSize: 18,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    _foundCityInfo!,
+                    style: const TextStyle(
+                      color: Colors.white70,
+                      fontSize: 14,
+                      height: 1.4,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: () {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: const Text('Переключись на вкладку "Карта" внизу экрана'),
+                                action: SnackBarAction(
+                                  label: 'OK',
+                                  onPressed: () {},
+                                ),
+                                duration: const Duration(seconds: 3),
+                              ),
+                            );
+                          },
+                          icon: const Icon(Icons.map),
+                          label: const Text('На карте'),
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: Colors.white,
+                            side: const BorderSide(color: Colors.white54),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      IconButton(
+                        onPressed: () {
+                          setState(() {
+                            _wishList.remove(_cityController.text.trim());
+                            _saveWishList();
+                            _foundCityInfo = null;
+                            _cityController.clear();
+                          });
+                        },
+                        icon: const Icon(Icons.delete_outline),
+                        color: Colors.white70,
+                        tooltip: 'Удалить из списка',
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ],
+          if (_suggestions.isNotEmpty && _foundCityInfo == null) ...[
+            const SizedBox(height: 12),
+            Text(
+              'Возможно, ты имел в виду:',
+              style: TextStyle(
+                color: Colors.white.withOpacity(0.8),
+                fontSize: 13,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: _suggestions.map((city) {
+                return ActionChip(
+                  label: Text(city),
+                  onPressed: () {
+                    _cityController.text = city;
+                    _checkCity();
+                  },
+                  backgroundColor: Colors.white.withOpacity(0.2),
+                  labelStyle: const TextStyle(color: Colors.white),
+                );
+              }).toList(),
+            ),
+          ],
+          if (_wishList.isNotEmpty) ...[
+            const SizedBox(height: 20),
+            const Divider(color: Colors.white24),
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                const Icon(Icons.favorite, color: Colors.white70, size: 18),
+                const SizedBox(width: 8),
+                Text(
+                  'Твои города мечты (${_wishList.length})',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w600,
+                    fontSize: 15,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: _wishList.map((city) {
+                return Chip(
+                  label: Text(city),
+                  deleteIcon: const Icon(Icons.close, size: 16),
+                  onDeleted: () {
+                    setState(() {
+                      _wishList.remove(city);
+                      _saveWishList();
+                    });
+                  },
+                  backgroundColor: Colors.white.withOpacity(0.15),
+                  labelStyle: const TextStyle(color: Colors.white),
+                );
+              }).toList(),
+            ),
+          ],
         ],
       ),
     );

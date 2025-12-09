@@ -23,6 +23,7 @@ class _VivaMapPageState extends State<VivaMapPage> {
   String? _error;
   String? _hint;
   bool _panelVisible = true;
+  html.IFrameElement? _iframeElement;
 
   @override
   void initState() {
@@ -232,13 +233,38 @@ class _VivaMapPageState extends State<VivaMapPage> {
   void _setCenter(_City city) {
     _center = city;
     // Сообщаем iframe: сдвинь карту и при желании открой модалку
-    html.window.postMessage({
+    final message = {
       'channel': _channelId,
       'type': 'pan',
       'lat': city.lat,
       'lon': city.lon,
       'city': city.toMap(),
-    }, '*');
+    };
+    
+    // Пытаемся отправить в iframe напрямую
+    if (_iframeElement != null) {
+      try {
+        _iframeElement!.contentWindow?.postMessage(message, '*');
+      } catch (e) {
+        // Если не получилось, отправляем в window
+        html.window.postMessage(message, '*');
+      }
+    } else {
+      // Если iframe ещё не создан, отправляем в window
+      html.window.postMessage(message, '*');
+    }
+    
+    // Дублируем отправку с небольшой задержкой на случай, если iframe ещё загружается
+    Future.delayed(const Duration(milliseconds: 100), () {
+      if (_iframeElement != null) {
+        try {
+          _iframeElement!.contentWindow?.postMessage(message, '*');
+        } catch (e) {
+          // Игнорируем ошибки
+        }
+      }
+    });
+    
     setState(() {});
   }
 
@@ -325,6 +351,7 @@ class _VivaMapPageState extends State<VivaMapPage> {
         ..style.margin = '0'
         ..style.padding = '0';
       element.setAttribute('allow', 'geolocation *; fullscreen *');
+      _iframeElement = element;
       return element;
     });
     return viewType;
@@ -363,7 +390,7 @@ class _VivaMapPageState extends State<VivaMapPage> {
       const modal = document.createElement('div');
       modal.id = 'city-modal';
       modal.style.cssText = 'position:fixed;inset:0;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,0.5);backdrop-filter:blur(4px);z-index:9999;font-family:"Segoe UI",system-ui,-apple-system,sans-serif;animation:fadeIn 0.2s ease-out;';
-      modal.innerHTML = '<style>@keyframes fadeIn{from{opacity:0;}to{opacity:1;}}@keyframes slideUp{from{transform:translateY(20px);opacity:0;}to{transform:translateY(0);opacity:1;}}#city-card{animation:slideUp 0.3s ease-out;}.modal-scroll::-webkit-scrollbar{width:8px;}.modal-scroll::-webkit-scrollbar-track{background:#f1f5f9;border-radius:4px;}.modal-scroll::-webkit-scrollbar-thumb{background:#cbd5e1;border-radius:4px;}.modal-scroll::-webkit-scrollbar-thumb:hover{background:#94a3b8;}</style><div id="city-card" style="background:#fff;border-radius:20px;max-width:600px;width:92%;max-height:85vh;box-shadow:0 20px 60px rgba(0,0,0,0.3);overflow:hidden;display:flex;flex-direction:column;"><div id="city-content"></div></div>';
+      modal.innerHTML = '<style>@keyframes fadeIn{from{opacity:0;}to{opacity:1;}}@keyframes slideUp{from{transform:translateY(20px);opacity:0;}to{transform:translateY(0);opacity:1;}}#city-card{animation:slideUp 0.3s ease-out;display:flex;flex-direction:column;height:85vh;max-height:85vh;}.modal-scroll::-webkit-scrollbar{width:8px;}.modal-scroll::-webkit-scrollbar-track{background:#f1f5f9;border-radius:4px;}.modal-scroll::-webkit-scrollbar-thumb{background:#cbd5e1;border-radius:4px;}.modal-scroll::-webkit-scrollbar-thumb:hover{background:#94a3b8;}</style><div id="city-card" style="background:#fff;border-radius:20px;max-width:600px;width:92%;box-shadow:0 20px 60px rgba(0,0,0,0.3);overflow:hidden;"><div id="city-content"></div></div>';
       document.body.appendChild(modal);
       modal.addEventListener('click', (e) => { if (e.target === modal) hideModal(); });
 
@@ -401,7 +428,7 @@ class _VivaMapPageState extends State<VivaMapPage> {
               <button aria-label="Close" onclick="hideModal();" style="border:none;background:rgba(255,255,255,0.2);backdrop-filter:blur(10px);border-radius:50%;width:36px;height:36px;cursor:pointer;color:#fff;font-size:18px;display:flex;align-items:center;justify-content:center;transition:all 0.2s;flex-shrink:0;" onmouseover="this.style.background='rgba(255,255,255,0.3)'" onmouseout="this.style.background='rgba(255,255,255,0.2)'">✕</button>
             </div>
           </div>
-          <div class="modal-scroll" style="padding:20px 22px 24px;font-size:14px;color:#1f2937;line-height:1.6;overflow-y:auto;overflow-x:hidden;flex:1;min-height:0;-webkit-overflow-scrolling:touch;scrollbar-width:thin;scrollbar-color:#cbd5e1 #f1f5f9;">
+          <div class="modal-scroll" style="padding:20px 22px 24px;font-size:14px;color:#1f2937;line-height:1.6;overflow-y:auto;overflow-x:hidden;flex:1;min-height:0;max-height:calc(85vh - 120px);-webkit-overflow-scrolling:touch;scrollbar-width:thin;scrollbar-color:#cbd5e1 #f1f5f9;">
             <div style="background:#f8fafc;padding:14px 16px;border-radius:12px;margin-bottom:8px;border-left:4px solid #667eea;font-size:14.5px;line-height:1.6;color:#475569;">\${city.description}</div>
             \${section('🏛️', 'Что посмотреть', city.places, '#667eea')}
             \${section('🏨', 'Отели и жильё', city.hotels, '#f59e0b')}
@@ -417,21 +444,27 @@ class _VivaMapPageState extends State<VivaMapPage> {
         marker.on('click', () => showModal(c));
       });
 
+      // Обработка сообщений от родительского окна
       window.addEventListener('message', (event) => {
-        const data = event.data || {};
-        if (data.channel !== channel) return;
-        if (data.type === 'pan' && typeof data.lat === 'number' && typeof data.lon === 'number') {
-          map.flyTo([data.lat, data.lon], 11, {
-            duration: 1.2,
-            easeLinearity: 0.25
-          });
-        }
-        if (data.type === 'focus-city' && data.city) {
-          map.flyTo([data.city.lat, data.city.lon], 11, {
-            duration: 1.2,
-            easeLinearity: 0.25
-          });
-          showModal(data.city);
+        try {
+          const data = event.data || {};
+          if (!data.channel || data.channel !== channel) return;
+          
+          if (data.type === 'pan' && typeof data.lat === 'number' && typeof data.lon === 'number') {
+            map.flyTo([data.lat, data.lon], 11, {
+              duration: 1.2,
+              easeLinearity: 0.25
+            });
+          }
+          if (data.type === 'focus-city' && data.city) {
+            map.flyTo([data.city.lat, data.city.lon], 11, {
+              duration: 1.2,
+              easeLinearity: 0.25
+            });
+            showModal(data.city);
+          }
+        } catch (e) {
+          console.error('Error handling message:', e);
         }
       });
     </script>
