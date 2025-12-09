@@ -18,6 +18,7 @@ class _VivaMapPageState extends State<VivaMapPage> {
   _City _center = _cities.first;
   final _controller = TextEditingController();
   String? _error;
+  String? _hint;
 
   @override
   void initState() {
@@ -93,7 +94,19 @@ class _VivaMapPageState extends State<VivaMapPage> {
                       ),
                       onSubmitted: (_) => _focusOnCity(),
                     ),
-                    const SizedBox(height: 10),
+                    const SizedBox(height: 6),
+                    if (_hint != null)
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 6),
+                        child: Text(
+                          _hint!,
+                          style: TextStyle(
+                            color: Colors.green.shade800,
+                            fontSize: 12.5,
+                          ),
+                        ),
+                      ),
+                    const SizedBox(height: 4),
                     Row(
                       children: [
                         FilledButton.tonalIcon(
@@ -107,6 +120,7 @@ class _VivaMapPageState extends State<VivaMapPage> {
                             setState(() {
                               _controller.clear();
                               _error = null;
+                              _hint = null;
                               _center = _cities.first;
                               _viewTypeId = _registerLeafletView(_center);
                             });
@@ -156,35 +170,97 @@ class _VivaMapPageState extends State<VivaMapPage> {
       setState(() => _error = 'Поле не должно быть пустым');
       return;
     }
-    if (query.length < 3) {
-      setState(() => _error = 'Минимум 3 символа');
-      return;
-    }
-    if (!RegExp(r'^[a-zA-Zа-яА-ЯёЁ\s\-]+$').hasMatch(query)) {
-      setState(() => _error = 'Только буквы и пробелы');
+    if (!_isInputShapeValid(query)) {
+      setState(() => _error = 'Только буквы, пробелы и дефисы. Минимум 3 символа.');
       return;
     }
 
-    final match = _findCity(query);
+    final match = _matchCity(query);
     if (match == null) {
-      setState(() => _error = 'Такой город не отмечен (добавь ближний)');
+      setState(() {
+        _error = 'Не узнали этот город. Попробуй: Рим, Милан, Пиза, Турин, Сицилия';
+        _hint = null;
+      });
       return;
     }
 
     setState(() {
       _error = null;
+      _hint = match.hint;
       _center = match;
       _viewTypeId = _registerLeafletView(match);
     });
   }
 
-  _City? _findCity(String value) {
-    final q = value.toLowerCase();
+  bool _isInputShapeValid(String value) {
+    if (value.trim().length < 3) return false;
+    return RegExp(r'^[a-zA-Zа-яА-ЯёЁ\s\-]+$').hasMatch(value.trim());
+  }
+
+  _City? _matchCity(String raw) {
+    final q = _normalize(raw);
+    _City? best;
+    var bestScore = 999;
+
     for (final city in _cities) {
-      final name = city.name.toLowerCase();
-      if (name.contains(q) || q.contains(name)) return city;
+      // мгновенное совпадение по основному имени
+      if (_normalize(city.name) == q) return city;
+
+      // совпадение по алиасам
+      for (final alias in city.aliases) {
+        if (_normalize(alias) == q) return city;
+      }
+
+      // частичное вхождение
+      if (_normalize(city.name).contains(q) || q.contains(_normalize(city.name))) {
+        return city;
+      }
+
+      // грубый fuzzy: берём минимальное расстояние по имени/алиасам
+      final candidates = [city.name, ...city.aliases];
+      for (final cand in candidates) {
+        final score = _levenshtein(q, _normalize(cand));
+        if (score < bestScore) {
+          bestScore = score;
+          best = city;
+        }
+      }
     }
+
+    // допускаем неточное совпадение, если расстояние маленькое относительно длины
+    final maxAllowed = (q.length / 3).ceil() + 1; // лояльный порог
+    if (best != null && bestScore <= maxAllowed) return best;
     return null;
+  }
+
+  String _normalize(String value) {
+    return value
+        .toLowerCase()
+        .replaceAll('ё', 'е')
+        .replaceAll(RegExp(r'[\s\-]'), '')
+        .trim();
+  }
+
+  int _levenshtein(String a, String b) {
+    if (a == b) return 0;
+    if (a.isEmpty) return b.length;
+    if (b.isEmpty) return a.length;
+
+    final m = List.generate(a.length + 1, (_) => List.filled(b.length + 1, 0));
+    for (var i = 0; i <= a.length; i++) m[i][0] = i;
+    for (var j = 0; j <= b.length; j++) m[0][j] = j;
+
+    for (var i = 1; i <= a.length; i++) {
+      for (var j = 1; j <= b.length; j++) {
+        final cost = a[i - 1] == b[j - 1] ? 0 : 1;
+        m[i][j] = [
+          m[i - 1][j] + 1,
+          m[i][j - 1] + 1,
+          m[i - 1][j - 1] + cost,
+        ].reduce((v, e) => v < e ? v : e);
+      }
+    }
+    return m[a.length][b.length];
   }
 
   String _registerLeafletView(_City center) {
@@ -245,16 +321,54 @@ class _VivaMapPageState extends State<VivaMapPage> {
 
 class _City {
   final String name;
+  final List<String> aliases;
+  final String hint;
   final double lat;
   final double lon;
-  const _City(this.name, this.lat, this.lon);
+  const _City({
+    required this.name,
+    required this.lat,
+    required this.lon,
+    this.aliases = const [],
+    this.hint = '',
+  });
 }
 
 const _cities = [
-  _City('Рим', 41.9028, 12.4964),
-  _City('Сицилия (Палермо)', 38.1157, 13.3615),
-  _City('Пиза', 43.7228, 10.4017),
-  _City('Милан', 45.4642, 9.19),
-  _City('Турин', 45.0703, 7.6869),
+  _City(
+    name: 'Рим',
+    aliases: ['Rome', 'Roma'],
+    hint: 'Вечный город, Колизей и Ватикан.',
+    lat: 41.9028,
+    lon: 12.4964,
+  ),
+  _City(
+    name: 'Сицилия (Палермо)',
+    aliases: ['Sicilia', 'Palermo', 'Sicily'],
+    hint: 'Солнце, рынки, канноли и Этна.',
+    lat: 38.1157,
+    lon: 13.3615,
+  ),
+  _City(
+    name: 'Пиза',
+    aliases: ['Pisa'],
+    hint: 'Наклонная башня и Тоскана рядом.',
+    lat: 43.7228,
+    lon: 10.4017,
+  ),
+  _City(
+    name: 'Милан',
+    aliases: ['Milano', 'Milan'],
+    hint: 'Дуомо, опера и мода.',
+    lat: 45.4642,
+    lon: 9.19,
+  ),
+  _City(
+    name: 'Турин',
+    aliases: ['Torino', 'Turin'],
+    hint: 'Шоколад, Альпы и кино.',
+    lat: 45.0703,
+    lon: 7.6869,
+  ),
 ];
 

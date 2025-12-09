@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:vivaitalia/screens/details_screen.dart';
+
 
 class VivaHomePage extends StatefulWidget {
   final int launchCount;
@@ -79,18 +81,28 @@ class _VivaHomePageState extends State<VivaHomePage> {
                   alignment: WrapAlignment.center,
                   spacing: 12,
                   runSpacing: 12,
-                  children: const [
-                    _StatPill(
+                  children: [
+                    const _StatPill(
                       icon: Icons.museum_outlined,
                       label: '58 объектов ЮНЕСКО',
                     ),
-                    _StatPill(
+                    const _StatPill(
                       icon: Icons.wine_bar_outlined,
                       label: '20 регионов вкуса',
                     ),
-                    _StatPill(
+                    const _StatPill(
                       icon: Icons.beach_access_outlined,
                       label: '~7600 км береговой линии',
+                    ),
+                    const SizedBox(height: 20),
+                    ElevatedButton(
+                      onPressed: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (context) => const DetailsScreen()),
+                        );
+                      },
+                      child: const Text('Перейти на экран деталей'),
                     ),
                   ],
                 ),

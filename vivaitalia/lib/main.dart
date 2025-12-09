@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'screens/home_screen.dart';
 import 'screens/details_screen.dart';
-import 'screens/map_screen.dart';
+import 'screens/map_screen_stub.dart' if (dart.library.html) 'screens/map_screen.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
