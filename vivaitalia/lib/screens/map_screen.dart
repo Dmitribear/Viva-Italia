@@ -362,32 +362,51 @@ class _VivaMapPageState extends State<VivaMapPage> {
       // Modal helpers
       const modal = document.createElement('div');
       modal.id = 'city-modal';
-      modal.style.cssText = 'position:fixed;inset:0;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,0.45);backdrop-filter:blur(2px);z-index:9999;font-family:Segoe UI, sans-serif;';
-      modal.innerHTML = '<div id="city-card" style="background:#fff;border-radius:14px;max-width:520px;width:92%;box-shadow:0 12px 38px rgba(0,0,0,0.22);overflow:hidden;"><div id="city-content"></div></div>';
+      modal.style.cssText = 'position:fixed;inset:0;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,0.5);backdrop-filter:blur(4px);z-index:9999;font-family:"Segoe UI",system-ui,-apple-system,sans-serif;animation:fadeIn 0.2s ease-out;';
+      modal.innerHTML = '<style>@keyframes fadeIn{from{opacity:0;}to{opacity:1;}}@keyframes slideUp{from{transform:translateY(20px);opacity:0;}to{transform:translateY(0);opacity:1;}}#city-card{animation:slideUp 0.3s ease-out;}.modal-scroll::-webkit-scrollbar{width:8px;}.modal-scroll::-webkit-scrollbar-track{background:#f1f5f9;border-radius:4px;}.modal-scroll::-webkit-scrollbar-thumb{background:#cbd5e1;border-radius:4px;}.modal-scroll::-webkit-scrollbar-thumb:hover{background:#94a3b8;}</style><div id="city-card" style="background:#fff;border-radius:20px;max-width:600px;width:92%;max-height:85vh;box-shadow:0 20px 60px rgba(0,0,0,0.3);overflow:hidden;display:flex;flex-direction:column;"><div id="city-content"></div></div>';
       document.body.appendChild(modal);
       modal.addEventListener('click', (e) => { if (e.target === modal) hideModal(); });
 
-      function hideModal(){ modal.style.display='none'; }
+      function hideModal(){ 
+        const card = modal.querySelector('#city-card');
+        card.style.animation = 'slideUp 0.2s ease-in reverse';
+        setTimeout(() => { modal.style.display='none'; }, 200);
+      }
+      
       function showModal(city){
         const wrap = modal.querySelector('#city-content');
-        const tag = (label, items) => items.length ? '<div style="margin-top:10px"><div style="font-weight:700;font-size:14px;margin-bottom:6px">'+label+'</div>'+items.map(p => {
-          if (p.url) return '<a href="'+p.url+'" target="_blank" rel="noopener" style="display:block;margin:4px 0;color:#0a5ad4;text-decoration:none;">'+p.title+'</a>';
-          return '<div style="margin:4px 0;">'+p.title+'</div>';
-        }).join('')+'</div>' : '';
+        const card = modal.querySelector('#city-card');
+        card.style.animation = 'slideUp 0.3s ease-out';
+        
+        const section = (icon, label, items, color) => {
+          if (!items || items.length === 0) return '';
+          const itemsHtml = items.map(p => {
+            const linkStyle = 'display:flex;align-items:center;gap:8px;padding:10px 12px;margin:6px 0;background:#f8fafc;border-radius:10px;text-decoration:none;color:#1e293b;transition:all 0.2s;border-left:3px solid ' + color + ';';
+            const hoverStyle = 'background:#f1f5f9;transform:translateX(4px);';
+            if (p.url) {
+              return '<a href="'+p.url+'" target="_blank" rel="noopener" style="'+linkStyle+'" onmouseover="this.style.cssText=\\''+linkStyle+hoverStyle+'\\'" onmouseout="this.style.cssText=\\''+linkStyle+'\\'"><span style="font-size:16px;">🔗</span><span style="flex:1;font-size:14px;line-height:1.4;">'+p.title+'</span><span style="font-size:12px;color:#64748b;">→</span></a>';
+            }
+            return '<div style="'+linkStyle+'"><span style="font-size:16px;">📍</span><span style="flex:1;font-size:14px;line-height:1.4;">'+p.title+'</span></div>';
+          }).join('');
+          return '<div style="margin-top:20px;"><div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;padding-bottom:8px;border-bottom:2px solid '+color+'20;"><span style="font-size:22px;">'+icon+'</span><div style="font-weight:700;font-size:16px;color:#1e293b;">'+label+'</div></div>'+itemsHtml+'</div>';
+        };
+        
         wrap.innerHTML = \`
-          <div style="padding:16px 18px 12px; display:flex; align-items:center; justify-content:space-between; gap:12px; border-bottom:1px solid #eef1f5;">
-            <div>
-              <div style="font-size:18px;font-weight:800;">\${city.name}</div>
-              <div style="font-size:13.5px;color:#64748b;">\${city.hint || ''}</div>
+          <div style="background:linear-gradient(135deg, #667eea 0%, #764ba2 100%);padding:24px 22px 20px;color:#fff;position:relative;flex-shrink:0;">
+            <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:16px;">
+              <div style="flex:1;">
+                <div style="font-size:24px;font-weight:800;margin-bottom:6px;text-shadow:0 2px 4px rgba(0,0,0,0.2);">\${city.name}</div>
+                <div style="font-size:14px;opacity:0.95;line-height:1.4;">\${city.hint || ''}</div>
+              </div>
+              <button aria-label="Close" onclick="hideModal();" style="border:none;background:rgba(255,255,255,0.2);backdrop-filter:blur(10px);border-radius:50%;width:36px;height:36px;cursor:pointer;color:#fff;font-size:18px;display:flex;align-items:center;justify-content:center;transition:all 0.2s;flex-shrink:0;" onmouseover="this.style.background='rgba(255,255,255,0.3)'" onmouseout="this.style.background='rgba(255,255,255,0.2)'">✕</button>
             </div>
-            <button aria-label="Close" onclick="hideModal();" style="border:none;background:#eef1f5;border-radius:50%;width:32px;height:32px;cursor:pointer;">✕</button>
           </div>
-          <div style="padding:16px 18px 18px;font-size:14px;color:#1f2937;line-height:1.5;">
-            <div>\${city.description}</div>
-            \${tag('Что посмотреть', city.places)}
-            \${tag('Отели / жильё', city.hotels)}
-            \${tag('Еда и кофе', city.food)}
-            \${tag('Факты', city.facts)}
+          <div class="modal-scroll" style="padding:20px 22px 24px;font-size:14px;color:#1f2937;line-height:1.6;overflow-y:auto;overflow-x:hidden;flex:1;min-height:0;-webkit-overflow-scrolling:touch;scrollbar-width:thin;scrollbar-color:#cbd5e1 #f1f5f9;">
+            <div style="background:#f8fafc;padding:14px 16px;border-radius:12px;margin-bottom:8px;border-left:4px solid #667eea;font-size:14.5px;line-height:1.6;color:#475569;">\${city.description}</div>
+            \${section('🏛️', 'Что посмотреть', city.places, '#667eea')}
+            \${section('🏨', 'Отели и жильё', city.hotels, '#f59e0b')}
+            \${section('🍝', 'Еда и кофе', city.food, '#ef4444')}
+            \${section('💡', 'Полезные факты', city.facts, '#10b981')}
           </div>
         \`;
         modal.style.display = 'flex';
@@ -402,10 +421,16 @@ class _VivaMapPageState extends State<VivaMapPage> {
         const data = event.data || {};
         if (data.channel !== channel) return;
         if (data.type === 'pan' && typeof data.lat === 'number' && typeof data.lon === 'number') {
-          map.setView([data.lat, data.lon], 8);
+          map.flyTo([data.lat, data.lon], 11, {
+            duration: 1.2,
+            easeLinearity: 0.25
+          });
         }
         if (data.type === 'focus-city' && data.city) {
-          map.setView([data.city.lat, data.city.lon], 8);
+          map.flyTo([data.city.lat, data.city.lon], 11, {
+            duration: 1.2,
+            easeLinearity: 0.25
+          });
           showModal(data.city);
         }
       });
