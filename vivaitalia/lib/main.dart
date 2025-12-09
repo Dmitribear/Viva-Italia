@@ -1,10 +1,39 @@
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'screens/home_screen.dart';
+import 'screens/details_screen.dart';
+import 'screens/map_screen.dart';
 
-void main() => runApp(const VivaItaliaApp());
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+
+  final prefs = await SharedPreferences.getInstance();
+
+  // считаем количество запусков (пример записи)
+  final launches = (prefs.getInt('launchCount') ?? 0) + 1;
+  await prefs.setInt('launchCount', launches);
+
+  // читаем последнюю открытую вкладку (пример чтения)
+  final lastTab = prefs.getInt('lastTab') ?? 0;
+
+  runApp(VivaItaliaApp(
+    initialTab: lastTab,
+    launchCount: launches,
+    prefs: prefs,
+  ));
+}
 
 class VivaItaliaApp extends StatelessWidget {
-  const VivaItaliaApp({super.key});
+  final int initialTab;
+  final int launchCount;
+  final SharedPreferences prefs;
+
+  const VivaItaliaApp({
+    super.key,
+    required this.initialTab,
+    required this.launchCount,
+    required this.prefs,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -15,25 +44,48 @@ class VivaItaliaApp extends StatelessWidget {
         useMaterial3: true,
         colorSchemeSeed: const Color(0xFF008C45),
       ),
-      home: const _Root(),
+      routes: {
+        '/details': (_) => const DetailsScreen(),
+      },
+      home: _Root(
+        key: const ValueKey('root-shell'),
+        initialTab: initialTab,
+        launchCount: launchCount,
+        prefs: prefs,
+      ),
     );
   }
 }
 
 class _Root extends StatefulWidget {
-  const _Root({super.key});
+  final int initialTab;
+  final int launchCount;
+  final SharedPreferences prefs;
+
+  const _Root({
+    super.key,
+    required this.initialTab,
+    required this.launchCount,
+    required this.prefs,
+  });
 
   @override
   State<_Root> createState() => _RootState();
 }
 
 class _RootState extends State<_Root> {
-  int _index = 0;
+  late int _index;
+  late final List<Widget> _pages;
 
-  final _pages = const [
-    VivaHomePage(),     // главная
-    VivaMapPage(),      // карта
-  ];
+  @override
+  void initState() {
+    super.initState();
+    _index = widget.initialTab;
+    _pages = [
+      VivaHomePage(launchCount: widget.launchCount),
+      const VivaMapPage(),
+    ];
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -41,7 +93,11 @@ class _RootState extends State<_Root> {
       body: _pages[_index],
       bottomNavigationBar: NavigationBar(
         selectedIndex: _index,
-        onDestinationSelected: (i) => setState(() => _index = i),
+        onDestinationSelected: (i) async {
+          setState(() => _index = i);
+          // сохраняем выбранную вкладку (пример записи)
+          await widget.prefs.setInt('lastTab', i);
+        },
         destinations: const [
           NavigationDestination(
             icon: Icon(Icons.home_outlined),
