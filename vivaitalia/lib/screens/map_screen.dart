@@ -6,6 +6,7 @@ import 'dart:ui_web' as ui;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:pointer_interceptor/pointer_interceptor.dart';
 
 class VivaMapPage extends StatefulWidget {
   const VivaMapPage({super.key});
@@ -16,14 +17,17 @@ class VivaMapPage extends StatefulWidget {
 
 class _VivaMapPageState extends State<VivaMapPage> {
   late String _viewTypeId;
+  late final String _channelId;
   _City _center = _cities.first;
   final _controller = TextEditingController();
   String? _error;
   String? _hint;
+  bool _panelVisible = true;
 
   @override
   void initState() {
     super.initState();
+    _channelId = 'osm-channel-${DateTime.now().microsecondsSinceEpoch}';
     _viewTypeId = _registerLeafletView(_center);
   }
 
@@ -51,112 +55,141 @@ class _VivaMapPageState extends State<VivaMapPage> {
         Positioned.fill(
           child: HtmlElementView(viewType: _viewTypeId),
         ),
-        Positioned(
-          top: 16,
-          left: 16,
-          right: 16,
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 460),
-            child: Card(
-              color: Colors.white.withOpacity(0.92),
-              elevation: 3,
-              child: Padding(
-                padding: const EdgeInsets.all(14),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Text(
-                      'OpenStreetMap · ключ не нужен',
-                      style: TextStyle(
-                        fontWeight: FontWeight.w700,
-                        fontSize: 16,
-                      ),
-                    ),
-                    const SizedBox(height: 6),
-                    Text(
-                      'Отмечены Рим, Сицилия (Палермо), Пиза, Милан и Турин. '
-                      'Введи город — подвинем центр карты.',
-                      style: TextStyle(
-                        color: Colors.grey.shade800,
-                        height: 1.3,
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    TextField(
-                      controller: _controller,
-                      decoration: InputDecoration(
-                        labelText: 'Город для фокуса',
-                        hintText: 'Например, Милан',
-                        errorText: _error,
-                        prefixIcon: const Icon(Icons.search),
-                        border: const OutlineInputBorder(),
-                        isDense: true,
-                      ),
-                      onSubmitted: (_) => _focusOnCity(),
-                    ),
-                    const SizedBox(height: 6),
-                    if (_hint != null)
-                      Padding(
-                        padding: const EdgeInsets.only(bottom: 6),
-                        child: Text(
-                          _hint!,
+        if (_panelVisible)
+          Positioned(
+            top: 12,
+            left: 12,
+            right: 12,
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 960),
+              child: PointerInterceptor(
+                child: Card(
+                  color: Colors.white.withOpacity(0.94),
+                  elevation: 3,
+                  child: Padding(
+                    padding: const EdgeInsets.all(14),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Row(
+                          children: [
+                            const Expanded(
+                              child: Text(
+                                'OpenStreetMap · ключ не нужен',
+                                style: TextStyle(
+                                  fontWeight: FontWeight.w700,
+                                  fontSize: 16,
+                                ),
+                              ),
+                            ),
+                            IconButton(
+                              tooltip: 'Скрыть панель',
+                              onPressed: () =>
+                                  setState(() => _panelVisible = false),
+                              icon: const Icon(Icons.close),
+                            ),
+                          ],
+                        ),
+                        Text(
+                          'Отмечены Рим, Сицилия (Палермо), Пиза, Милан и Турин. '
+                          'Введи город — подвинем центр карты.',
                           style: TextStyle(
-                            color: Colors.green.shade800,
-                            fontSize: 12.5,
+                            color: Colors.grey.shade800,
+                            height: 1.3,
                           ),
                         ),
-                      ),
-                    const SizedBox(height: 4),
-                    Row(
-                      children: [
-                        FilledButton.tonalIcon(
-                          onPressed: _focusOnCity,
-                          icon: const Icon(Icons.my_location_outlined),
-                          label: const Text('Показать'),
+                        const SizedBox(height: 12),
+                        TextField(
+                          controller: _controller,
+                          decoration: InputDecoration(
+                            labelText: 'Город для фокуса',
+                            hintText: 'Например, Милан',
+                            errorText: _error,
+                            prefixIcon: const Icon(Icons.search),
+                            border: const OutlineInputBorder(),
+                            isDense: true,
+                          ),
+                          onSubmitted: (_) => _focusOnCity(),
                         ),
-                        const SizedBox(width: 10),
-                        TextButton(
-                          onPressed: () {
-                            setState(() {
-                              _controller.clear();
-                              _error = null;
-                              _hint = null;
-                              _center = _cities.first;
-                              _viewTypeId = _registerLeafletView(_center);
-                            });
-                          },
-                          child: const Text('Сбросить'),
+                        const SizedBox(height: 6),
+                        if (_hint != null)
+                          Padding(
+                            padding: const EdgeInsets.only(bottom: 6),
+                            child: Text(
+                              _hint!,
+                              style: TextStyle(
+                                color: Colors.green.shade800,
+                                fontSize: 12.5,
+                              ),
+                            ),
+                          ),
+                        const SizedBox(height: 4),
+                        Row(
+                          children: [
+                            FilledButton.tonalIcon(
+                              onPressed: _focusOnCity,
+                              icon: const Icon(Icons.my_location_outlined),
+                              label: const Text('Показать'),
+                            ),
+                            const SizedBox(width: 10),
+                            TextButton(
+                              onPressed: () {
+                                setState(() {
+                                  _controller.clear();
+                                  _error = null;
+                                  _hint = null;
+                                  _center = _cities.first;
+                                });
+                                _setCenter(_cities.first);
+                              },
+                              child: const Text('Сбросить'),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 6),
+                        SingleChildScrollView(
+                          scrollDirection: Axis.horizontal,
+                          child: Wrap(
+                            spacing: 8,
+                            runSpacing: 6,
+                            children: _cities
+                                .map(
+                                  (c) => ActionChip(
+                                    onPressed: () {
+                                      _controller.text = c.name;
+                                      _focusOnCity();
+                                    },
+                                    label: Text(c.name),
+                                    avatar: const Icon(Icons.place, size: 18),
+                                    labelStyle: const TextStyle(fontSize: 13),
+                                    materialTapTargetSize:
+                                        MaterialTapTargetSize.shrinkWrap,
+                                    visualDensity: VisualDensity.compact,
+                                  ),
+                                )
+                                .toList(),
+                          ),
                         ),
                       ],
                     ),
-                    const SizedBox(height: 6),
-                    Wrap(
-                      spacing: 8,
-                      runSpacing: 6,
-                      children: _cities
-                          .map(
-                            (c) => ActionChip(
-                              onPressed: () {
-                                _controller.text = c.name;
-                                _setCenter(c);
-                              },
-                              label: Text(c.name),
-                              avatar: const Icon(Icons.place, size: 18),
-                              labelStyle: const TextStyle(fontSize: 13),
-                              materialTapTargetSize:
-                                  MaterialTapTargetSize.shrinkWrap,
-                              visualDensity: VisualDensity.compact,
-                            ),
-                          )
-                          .toList(),
-                    ),
-                  ],
+                  ),
                 ),
               ),
             ),
+          )
+        else
+          Positioned(
+            top: 12,
+            left: 12,
+            child: PointerInterceptor(
+              child: FloatingActionButton.small(
+                heroTag: 'show-panel',
+                onPressed: () => setState(() => _panelVisible = true),
+                child: const Icon(Icons.search),
+              ),
+            ),
           ),
-        ),
         const Positioned(
           bottom: 8,
           right: 12,
@@ -198,7 +231,15 @@ class _VivaMapPageState extends State<VivaMapPage> {
 
   void _setCenter(_City city) {
     _center = city;
-    _viewTypeId = _registerLeafletView(city);
+    // Сообщаем iframe: сдвинь карту и при желании открой модалку
+    html.window.postMessage({
+      'channel': _channelId,
+      'type': 'pan',
+      'lat': city.lat,
+      'lon': city.lon,
+      'city': city.toMap(),
+    }, '*');
+    setState(() {});
   }
 
   bool _isInputShapeValid(String value) {
@@ -309,6 +350,7 @@ class _VivaMapPageState extends State<VivaMapPage> {
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script>
       const cities = $citiesJson;
+      const channel = "${_channelId}";
 
       const map = L.map('map', { scrollWheelZoom: true })
         .setView([${center.lat}, ${center.lon}], 6.2);
@@ -354,6 +396,18 @@ class _VivaMapPageState extends State<VivaMapPage> {
       cities.forEach(c => {
         const marker = L.marker([c.lat, c.lon]).addTo(map);
         marker.on('click', () => showModal(c));
+      });
+
+      window.addEventListener('message', (event) => {
+        const data = event.data || {};
+        if (data.channel !== channel) return;
+        if (data.type === 'pan' && typeof data.lat === 'number' && typeof data.lon === 'number') {
+          map.setView([data.lat, data.lon], 8);
+        }
+        if (data.type === 'focus-city' && data.city) {
+          map.setView([data.city.lat, data.city.lon], 8);
+          showModal(data.city);
+        }
       });
     </script>
   </body>
