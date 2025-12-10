@@ -39,13 +39,13 @@ class _VivaMapPageState extends State<VivaMapPage> {
     if (widget.prefs == null) return;
     final focusCity = widget.prefs!.getString('focusCity');
     if (focusCity != null && focusCity.isNotEmpty) {
-      // Очищаем сразу, чтобы не фокусироваться повторно
+
       await widget.prefs!.remove('focusCity');
-      
-      // Ищем город в списке
+
+
       final city = _findCityByName(focusCity);
       if (city != null) {
-        // Небольшая задержка для загрузки iframe
+
         Future.delayed(const Duration(milliseconds: 500), () {
           _setCenter(city);
           _controller.text = city.name;

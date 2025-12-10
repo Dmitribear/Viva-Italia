@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'screens/home_screen.dart';
 import 'screens/details_screen.dart';
+import 'screens/profile_screen.dart';
 import 'screens/map_screen_stub.dart' if (dart.library.html) 'screens/map_screen.dart';
 
 Future<void> main() async {
@@ -85,12 +86,21 @@ class _RootState extends State<_Root> {
       VivaHomePage(
         launchCount: widget.launchCount,
         onNavigateToMap: (cityName) {
-          setState(() => _index = 1);
-          widget.prefs.setInt('lastTab', 1);
+          _openMapWithCity(cityName);
         },
       ),
       VivaMapPage(prefs: widget.prefs),
+      ProfileScreen(
+        prefs: widget.prefs,
+        onFocusCity: _openMapWithCity,
+      ),
     ];
+  }
+
+  Future<void> _openMapWithCity(String cityName) async {
+    setState(() => _index = 1);
+    await widget.prefs.setString('focusCity', cityName);
+    await widget.prefs.setInt('lastTab', 1);
   }
 
   @override
@@ -114,6 +124,11 @@ class _RootState extends State<_Root> {
             icon: Icon(Icons.map_outlined),
             selectedIcon: Icon(Icons.map),
             label: 'Карта',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.person_outline),
+            selectedIcon: Icon(Icons.person),
+            label: 'Кабинет',
           ),
         ],
       ),
